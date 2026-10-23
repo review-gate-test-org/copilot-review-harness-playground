@@ -1,0 +1,20 @@
+name: Review policy trigger
+
+# pull_request_review runs the PR's own workflow code, so this job does nothing
+# privileged. Its completion fires `workflow_run` in "Review policy", which runs
+# the default-branch code and re-evaluates the PR from the API.
+on:
+  pull_request_review:
+    types: [submitted, dismissed]
+
+permissions: {}
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          ACTION: ${{ github.event.action }}
+          REVIEWER: ${{ github.event.review.user.login }}
+          PR: ${{ github.event.pull_request.number }}
+        run: echo "Review $ACTION by $REVIEWER on PR #$PR"

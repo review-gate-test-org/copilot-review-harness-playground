@@ -38,3 +38,22 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run build
+
+  review-policy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test .github/review-policy/policy.test.js
+      # Dry run of this PR against the policy/CODEOWNERS in the PR itself (job summary only).
+      - if: github.event_name == 'pull_request'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { run } = require(`${process.env.GITHUB_WORKSPACE}/.github/review-policy/run.js`);
+            await run({ github, context, core, inputPr: context.payload.pull_request.number, policySource: 'workspace' });

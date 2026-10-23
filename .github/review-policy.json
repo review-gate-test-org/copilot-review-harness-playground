@@ -1,0 +1,18 @@
+{
+  "copilotLogin": "copilot-pull-request-reviewer[bot]",
+  "copilotAllowlist": [
+    "/backend/src/",
+    "/client/src/",
+    "/client/public/",
+    "*.md"
+  ],
+  "copilotBlocklist": [
+    "/.github/",
+    "pom.xml",
+    "package.json",
+    "package-lock.json",
+    "CODEOWNERS"
+  ],
+  "requireApprovalOnHead": true,
+  "trustedAssociations": ["OWNER", "MEMBER", "COLLABORATOR"]
+}
