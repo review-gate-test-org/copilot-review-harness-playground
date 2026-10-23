@@ -60,7 +60,7 @@ reviewed under the old rules.
 | | `schedule` (every 15 min) | Sweep all open PRs, in case an event was missed. |
 | | `workflow_dispatch` (`pr` input) | Manual run. |
 | `review-policy-trigger.yml` | `pull_request_review` | Does nothing privileged. Its completion fires `workflow_run`. |
-| `ci.yml` → `review-policy` | `pull_request` | Unit tests, plus a **dry run** using the PR's own policy (job summary only, no status). |
+| `ci.yml` → `review-policy-dry-run` | `pull_request` | Unit tests, plus a **dry run** using the PR's own policy (job summary only, no status). |
 
 Every run recomputes from API state, so duplicate or out-of-order events are harmless.
 The evaluator checks out only `.github/review-policy` from the default branch and
@@ -104,6 +104,8 @@ gets a read-only token on fork PRs. Runs triggered by Copilot's review also end 
     environment, controls the check, as with any CI.
 - Protect `.github/` (blocklist it and give it a code owner) so changes to the
   policy itself need a human.
+- Don't name any CI job `review-policy`. A check run with the same name, from the
+  same integration, would satisfy the required check.
 - `pull_request_target` runs with secrets; that's safe here only because no PR content
   is checked out or executed.
 

@@ -39,7 +39,7 @@ jobs:
       - run: npm run lint
       - run: npm run build
 
-  review-policy:
+  review-policy-dry-run:
     runs-on: ubuntu-latest
     permissions:
       contents: read
