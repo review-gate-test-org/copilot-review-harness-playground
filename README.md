@@ -29,3 +29,5 @@ Otherwise it stays yellow (`pending`) and says what is missing. `.github/**` and
 ```bash
 node --test .github/review-gate/gate.test.js
 ```
+
+Test line for review-gate scenario B.
