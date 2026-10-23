@@ -39,7 +39,7 @@ jobs:
       - run: npm run lint
       - run: npm run build
 
-  review-gate:
+  review-gate-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

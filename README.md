@@ -14,6 +14,7 @@ and enable merging, while still requiring a human code owner review where needed
 cd backend && mvn verify
 cd client && npm ci && npm run lint && npm run build
 ```
+
 ## Review gate
 
 Merging to `main` requires the `review-gate` commit status, posted by a GitHub App from
