@@ -8,6 +8,18 @@ GitHub can't express this natively: Copilot can't be listed in `CODEOWNERS`, and
 approval never counts as a code-owner approval. So this check takes over the
 "Require review from Code Owners" job and adds the Copilot rule on top.
 
+## Design principle: deterministic
+
+Copilot code review is the **only** AI in the loop. This check makes no model calls
+and doesn't interpret review text. Its decision is a pure function of:
+
+- the review **states** and commit IDs from the API
+- the changed file paths
+- `CODEOWNERS` and `review-policy.json` at the base commit
+
+The same inputs always give the same status. The logic lives in `policy.js` (no I/O),
+and its unit tests cover it.
+
 ## Rule
 
 Every changed path (for renames, both the old and the new path) must be covered by
