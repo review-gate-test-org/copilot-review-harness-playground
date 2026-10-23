@@ -6,6 +6,8 @@ import java.util.Objects;
 
 public class TodoService {
 
+  public static final int MAX_LENGTH = 200;
+
   private final List<String> todos = new ArrayList<>();
 
   public void add(String todo) {
@@ -13,7 +15,11 @@ public class TodoService {
     if (todo.isBlank()) {
       throw new IllegalArgumentException("todo must not be blank");
     }
-    todos.add(todo.strip());
+    String stripped = todo.strip();
+    if (stripped.length() > MAX_LENGTH) {
+      throw new IllegalArgumentException("todo must not exceed " + MAX_LENGTH + " characters");
+    }
+    todos.add(stripped);
   }
 
   public List<String> list() {

@@ -28,4 +28,16 @@ class TodoServiceTest {
     assertTrue(service.remove("ship it"));
     assertTrue(service.list().isEmpty());
   }
+
+  @Test
+  void rejectsTodoLongerThanMaxLength() {
+    String tooLong = "x".repeat(TodoService.MAX_LENGTH + 1);
+    assertThrows(IllegalArgumentException.class, () -> service.add(tooLong));
+  }
+
+  @Test
+  void acceptsTodoAtMaxLength() {
+    service.add("x".repeat(TodoService.MAX_LENGTH));
+    assertEquals(1, service.list().size());
+  }
 }
