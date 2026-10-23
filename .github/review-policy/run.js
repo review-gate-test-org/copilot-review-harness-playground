@@ -108,6 +108,11 @@ async function evaluatePr({ github, context, core, pr, policySource }) {
   const full = pr.changed_files === undefined
     ? (await github.rest.pulls.get({ owner, repo, pull_number: number })).data
     : pr;
+  // The status is published for the snapshot's head. If the PR moved while reviews and files
+  // were being read, they may describe another commit: fail so the caller posts pending.
+  if (full.head.sha !== pr.head.sha || full.base.sha !== pr.base.sha) {
+    throw new Error(`PR #${number} changed during evaluation (head ${pr.head.sha.slice(0, 7)} → ${full.head.sha.slice(0, 7)}); a later run will re-evaluate it`);
+  }
   const result = evaluate({ config, pr: full, files, reviews, codeowners, teamMembers });
   core.info(`PR #${number} @ ${pr.head.sha}: ${result.state} — ${result.description}`);
   return result;
