@@ -1,0 +1,16 @@
+name: Copilot review observed
+
+# Runs in the PR's context without secrets. Its only job is to fire workflow_run
+# for the privileged harness when Copilot submits a review.
+on:
+  pull_request_review:
+    types: [submitted]
+
+permissions: {}
+
+jobs:
+  observe:
+    if: github.event.review.user.login == 'copilot-pull-request-reviewer[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Copilot reviewed PR #${{ github.event.pull_request.number }} at ${{ github.event.review.commit_id }}"

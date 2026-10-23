@@ -1,0 +1,16 @@
+{
+  "copilotLogin": "copilot-pull-request-reviewer[bot]",
+  "approvedHeading": "### 🟢 Approved",
+  "approvablePaths": [
+    "backend/src/**",
+    "client/src/**",
+    "client/public/**",
+    "**/*.md"
+  ],
+  "humanOnlyPaths": [
+    ".github/**",
+    "**/pom.xml",
+    "**/package.json",
+    "**/package-lock.json"
+  ]
+}

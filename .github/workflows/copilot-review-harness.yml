@@ -1,0 +1,39 @@
+name: Copilot review harness
+
+# workflow_run always executes the default-branch version of this file and the
+# checked-out scripts, so a PR cannot change the rules it is judged by.
+on:
+  workflow_run:
+    workflows: [Copilot review observed]
+    types: [completed]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: copilot-review-harness-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
+
+jobs:
+  decide:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github
+      - uses: actions/github-script@v7
+        env:
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          DRY_RUN: ${{ secrets.REVIEW_BOT_TOKEN == '' }}
+        with:
+          github-token: ${{ secrets.REVIEW_BOT_TOKEN || github.token }}
+          script: |
+            const harness = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/copilot-review-harness.js`);
+            const config = require(`${process.env.GITHUB_WORKSPACE}/.github/copilot-review-harness.json`);
+            await harness.run({
+              github, context, core, config,
+              headSha: process.env.HEAD_SHA,
+              dryRun: process.env.DRY_RUN === 'true',
+            });
