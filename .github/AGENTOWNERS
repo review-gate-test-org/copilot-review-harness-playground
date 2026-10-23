@@ -1,0 +1,12 @@
+# Review agents that MAY approve changes to these paths. Read by .github/review-gate/gate.js.
+#
+# Same syntax as CODEOWNERS: <pattern> <agent> [<agent> ...]
+# - The last matching line wins.
+# - A line with no agent means no agent may approve that path.
+# - A path that no line matches is not agent-approvable.
+# - .github/** and CODEOWNERS are never agent-approvable (enforced in code).
+#
+# Agents: copilot (GitHub Copilot code review)
+
+/backend/   copilot
+/client/    copilot
