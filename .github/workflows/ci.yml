@@ -49,7 +49,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node --test .github/review-policy/policy.test.js
+      - run: node --test .github/review-policy/*.test.js
       # Dry run of this PR against the policy/CODEOWNERS in the PR itself (job summary only).
       - if: github.event_name == 'pull_request'
         uses: actions/github-script@v8

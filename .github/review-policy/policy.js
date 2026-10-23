@@ -65,10 +65,11 @@ function ownersFor(path, rules) {
 
 const DECISIVE_STATES = new Set(['APPROVED', 'CHANGES_REQUESTED', 'DISMISSED']);
 
+const byTime = (reviews) => [...reviews].sort((a, b) => new Date(a.submitted_at) - new Date(b.submitted_at));
+
 function latestDecisiveReviews(reviews) {
   const byUser = new Map();
-  const sorted = [...reviews].sort((a, b) => new Date(a.submitted_at) - new Date(b.submitted_at));
-  for (const r of sorted) {
+  for (const r of byTime(reviews)) {
     if (!r.user || !DECISIVE_STATES.has(r.state)) continue;
     byUser.set(r.user.login, r);
   }
@@ -123,13 +124,18 @@ function evaluate({ config: rawConfig, pr, files, reviews, codeowners, teamMembe
   const onHead = (r) => !config.requireApprovalOnHead || r.commit_id === head;
   const latest = latestDecisiveReviews(reviews);
 
-  let copilotApproved = false;
+  // Copilot's verdict is its latest submitted review of any state: a later 🟡/🔴 (COMMENTED)
+  // review revokes an earlier 🟢 approval, unlike a human's follow-up comment.
+  const copilotLatest = byTime(reviews)
+    .filter((r) => r.user && r.user.login.toLowerCase() === copilotLogin && r.state !== 'PENDING')
+    .pop();
+  const copilotApproved = Boolean(copilotLatest && copilotLatest.state === 'APPROVED' && onHead(copilotLatest));
+
   const approvers = [];
   for (const [login, r] of latest) {
     if (r.state !== 'APPROVED' || !onHead(r)) continue;
     const l = login.toLowerCase();
-    if (l === copilotLogin) copilotApproved = true;
-    else if (l !== author && r.user.type !== 'Bot') {
+    if (l !== copilotLogin && l !== author && r.user.type !== 'Bot') {
       approvers.push({ login: l, trusted: config.trustedAssociations.includes(r.author_association) });
     }
   }

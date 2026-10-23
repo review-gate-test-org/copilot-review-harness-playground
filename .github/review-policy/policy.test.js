@@ -144,6 +144,13 @@ test('Copilot non-approval verdicts (COMMENTED) never cover', () => {
   assert.equal(run({ paths: ['client/src/a.ts'], reviews: [commented] }).state, 'pending');
 });
 
+test('a later non-green Copilot review revokes its earlier approval', () => {
+  const approvedThenYellow = [copilotOk(), review('copilot-pull-request-reviewer[bot]', 'COMMENTED', { author_association: 'NONE' })];
+  assert.equal(run({ paths: ['client/src/a.ts'], reviews: approvedThenYellow }).state, 'pending');
+  const yellowThenApproved = [review('copilot-pull-request-reviewer[bot]', 'COMMENTED', { author_association: 'NONE' }), copilotOk()];
+  assert.equal(run({ paths: ['client/src/a.ts'], reviews: yellowThenApproved }).state, 'success');
+});
+
 test('other bots cannot act as approvers', () => {
   const bot = review('evil[bot]', 'APPROVED');
   assert.equal(run({ paths: ['client/package.json'], reviews: [bot] }).state, 'pending');

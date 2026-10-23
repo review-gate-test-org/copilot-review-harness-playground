@@ -15,11 +15,11 @@ Every changed path (for renames, both the old and the new path) must be covered 
 
 | # | Covered by | Condition |
 |---|------------|-----------|
-| 1 | **Copilot** | Copilot's latest review on the head commit is `APPROVED` (🟢), **and** the path matches `copilotAllowlist` and does not match `copilotBlocklist`. 🔵 / 🟡 / 🔴 reviews are `COMMENTED` and never count. |
+| 1 | **Copilot** | Copilot's **latest** review is an `APPROVED` (🟢) review of the head commit, **and** the path matches `copilotAllowlist` and does not match `copilotBlocklist`. 🔵 / 🟡 / 🔴 reviews are `COMMENTED`: they never count, and a later one revokes an earlier 🟢. |
 | 2 | **A code owner** | A code owner of the path (last matching `CODEOWNERS` rule) approved the head commit. The PR author doesn't count for their own PR. |
 | 3 | **A maintainer** | The path has no code owner other than the author, and someone whose association is in `trustedAssociations` approved. |
 
-- Only each reviewer's latest decisive review counts (`APPROVED`, `CHANGES_REQUESTED`, `DISMISSED`).
+- For humans, only their latest decisive review counts (`APPROVED`, `CHANGES_REQUESTED`, `DISMISSED`). A later comment doesn't revoke an approval.
 - Bots other than Copilot never count.
 - With `requireApprovalOnHead: true`, approvals of older commits are ignored.
 
@@ -58,13 +58,28 @@ reviewed under the old rules.
 | `review-policy.yml` | `pull_request_target` (open, push, base change) | Evaluate the PR. |
 | | `workflow_run` of *Review policy trigger* / *Copilot* | Re-evaluate after a review. |
 | | `schedule` (every 15 min) | Sweep all open PRs, in case an event was missed. |
-| | `workflow_dispatch` (`pr` input) | Manual run. |
+| | `workflow_dispatch` | Manual run. |
 | `review-policy-trigger.yml` | `pull_request_review` | Does nothing privileged. Its completion fires `workflow_run`. |
 | `ci.yml` → `review-policy-dry-run` | `pull_request` | Unit tests, plus a **dry run** using the PR's own policy (job summary only, no status). |
 
-Every run recomputes from API state, so duplicate or out-of-order events are harmless.
-The evaluator checks out only `.github/review-policy` from the default branch and
-never runs PR code.
+Whatever triggered it, each run of the evaluator works the same way:
+
+- It re-evaluates **every open PR that targets the default branch** from current API
+  state, so duplicate, missed or out-of-order events are harmless.
+- Runs are serialized in a single concurrency group, so a slow run can't overwrite a
+  newer decision.
+- It posts **one status per head SHA**. A status belongs to a commit, not to a PR, so
+  when several PRs share a head SHA, the status is `success` only if all of them pass.
+- If evaluating a PR fails, its commit is set to `pending`, so a stale `success` can't
+  survive. The job also fails.
+- An unchanged status isn't re-posted. GitHub allows 1000 statuses per SHA and
+  context, and the schedule would otherwise use them up. The comparison only looks
+  at statuses created by the expected poster (the app, or `github-actions[bot]`).
+- It checks out only `.github/review-policy` from the default branch and never runs
+  PR code.
+
+PRs targeting other branches get no status, so don't require `review-policy` on
+those branches.
 
 Why the indirection: a `pull_request_review` run uses the PR's workflow files and
 gets a read-only token on fork PRs. Runs triggered by Copilot's review also end up
@@ -126,3 +141,6 @@ node --test .github/review-policy/policy.test.js
 - Team code owners are only resolved with the app token (*Members: read*).
   Otherwise they show up as unresolved.
 - PRs with more than 3000 files, which is the API limit, stay pending.
+- Each run re-evaluates all open PRs: roughly 4 API calls per PR, plus one per changed
+  status. That's fine for tens of PRs. For hundreds, run it as a real GitHub App with
+  per-PR webhooks and a queue instead.
