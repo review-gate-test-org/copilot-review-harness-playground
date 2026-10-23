@@ -17,4 +17,4 @@ jobs:
           ACTION: ${{ github.event.action }}
           REVIEWER: ${{ github.event.review.user.login }}
           PR: ${{ github.event.pull_request.number }}
-        run: echo "Review $ACTION by $REVIEWER on PR #$PR"
+        run: 'echo "Review $ACTION by $REVIEWER on PR #$PR"'
