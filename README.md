@@ -26,6 +26,8 @@ Merging to `main` requires the `review-gate` commit status, posted by a GitHub A
 
 Otherwise it stays yellow (`pending`) and says what is missing. `.github/**` and `CODEOWNERS` always need a human.
 
+Design, current setup, learnings, limitations and next steps: [`.github/review-gate/README.md`](.github/review-gate/README.md).
+
 ```bash
 node --test .github/review-gate/gate.test.js
 ```
