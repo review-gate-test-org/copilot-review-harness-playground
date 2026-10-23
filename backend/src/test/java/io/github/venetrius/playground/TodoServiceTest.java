@@ -28,4 +28,12 @@ class TodoServiceTest {
     assertTrue(service.remove("ship it"));
     assertTrue(service.list().isEmpty());
   }
+
+  @Test
+  void sizeReflectsNumberOfTodos() {
+    assertEquals(0, service.size());
+    service.add("one");
+    service.add("two");
+    assertEquals(2, service.size());
+  }
 }
