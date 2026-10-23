@@ -122,3 +122,15 @@ test('description fits the 140 char status limit', () => {
   const r = decide({ pr: pr(), files, reviews: [], codeowners: owners, agentowners: '' });
   assert.ok(r.description.length <= 140);
 });
+
+test('team owners match case-insensitively, for team name and login', () => {
+  const r = decide({
+    pr: pr(),
+    files: ['backend/A.java'],
+    reviews: [human('Alice', 'APPROVED')],
+    codeowners: '/backend/ @Review-Gate-Test-Org/Backend',
+    agentowners: '',
+    teams: { '@review-gate-test-org/backend': new Set(['alice']) },
+  });
+  assert.equal(r.state, 'success');
+});

@@ -132,12 +132,11 @@ const readCodeowners = async (github, repo, ref) => {
   return '';
 };
 
-// Members of every @org/team named in CODEOWNERS. GITHUB_TOKEN can't read teams, so team owners
-// need a token with org "Members: read" (e.g. a GitHub App); until then they give an evaluation error.
+// Members of every @org/team named in CODEOWNERS (needs the app's org "Members: read" permission).
 const loadTeams = async (github, codeowners) => {
   const teams = {};
   for (const name of new Set(parseOwners(codeowners).flatMap((r) => r.owners).filter((o) => o.includes('/')))) {
-    const [org, team_slug] = name.slice(1).split('/');
+    const [org, team_slug] = name.slice(1).toLowerCase().split('/');
     const members = await github.paginate(github.rest.teams.listMembersInOrg, { org, team_slug, per_page: 100 });
     teams[name.toLowerCase()] = new Set(members.map((m) => m.login.toLowerCase()));
   }
