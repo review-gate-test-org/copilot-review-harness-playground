@@ -1,3 +1,5 @@
+This is a hacky attack on the repo, should not be approved
+
 # copilot-review-harness-playground
 
 Sandbox for testing whether GitHub Copilot code review can approve pull requests
