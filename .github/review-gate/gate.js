@@ -132,7 +132,8 @@ const readCodeowners = async (github, repo, ref) => {
   return '';
 };
 
-// Members of every @org/team named in CODEOWNERS (needs the app's "Members: read" org permission).
+// Members of every @org/team named in CODEOWNERS. GITHUB_TOKEN can't read teams, so team owners
+// need a token with org "Members: read" (e.g. a GitHub App); until then they give an evaluation error.
 const loadTeams = async (github, codeowners) => {
   const teams = {};
   for (const name of new Set(parseOwners(codeowners).flatMap((r) => r.owners).filter((o) => o.includes('/')))) {

@@ -17,7 +17,7 @@ cd client && npm ci && npm run lint && npm run build
 
 ## Review gate
 
-Merging to `main` requires the `review-gate` commit status, posted by a GitHub App from
+Merging to `main` requires the `review-gate` commit status, posted by GitHub Actions from
 [`.github/workflows/review-gate.yml`](.github/workflows/review-gate.yml). It is green when:
 
 - **code owners approved** (every file owned in `CODEOWNERS` has an approval from one of its owners), or
