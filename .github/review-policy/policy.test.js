@@ -151,6 +151,11 @@ test('a later non-green Copilot review revokes its earlier approval', () => {
   assert.equal(run({ paths: ['client/src/a.ts'], reviews: yellowThenApproved }).state, 'success');
 });
 
+test('filenames with newlines cannot escape the blocklist or CODEOWNERS', () => {
+  assert.equal(run({ paths: ['.github/guide\n.md'], reviews: [copilotOk()] }).state, 'pending');
+  assert.deepEqual(ownersFor('backend/a\nb/C.java', codeowners), ['@JacobiCamunda']);
+});
+
 test('other bots cannot act as approvers', () => {
   const bot = review('evil[bot]', 'APPROVED');
   assert.equal(run({ paths: ['client/package.json'], reviews: [bot] }).state, 'pending');

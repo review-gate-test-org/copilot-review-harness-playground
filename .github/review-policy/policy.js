@@ -38,7 +38,8 @@ function patternToRegExp(pattern) {
   let suffix = '';
   if (dirOnly) suffix = '/.*';
   else if (!/[*?]/.test(lastSegment)) suffix = '(?:/.*)?';
-  return new RegExp(`^${prefix}${body}${suffix}$`);
+  // dotAll: Git filenames may contain newlines, and `.*` must still cross them.
+  return new RegExp(`^${prefix}${body}${suffix}$`, 's');
 }
 
 function matchesAny(path, patterns) {
