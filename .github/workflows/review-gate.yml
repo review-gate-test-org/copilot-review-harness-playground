@@ -7,6 +7,10 @@ name: Review gate
 # Security: every trigger here runs the workflow and script from the default branch, never PR code.
 # The status is posted by a GitHub App whose key lives in the `review-gate` environment, which only
 # the default branch can use. The ruleset pins the check to that app, so no other workflow can fake it.
+#
+# Runs triggered by Copilot (its review, and anything chained from it) are held for approval by
+# GitHub. So the run started by the author's push waits up to 15 min for Copilot's review of that
+# commit, but only when Copilot's verdict could still turn the gate green.
 on:
   pull_request_target:
     types: [opened, reopened, synchronize, ready_for_review, converted_to_draft]
@@ -22,12 +26,14 @@ on:
 permissions: {}
 
 concurrency:
-  group: review-gate-${{ github.event.pull_request.number || github.event.workflow_run.head_sha || 'all' }}
+  # One group per PR: a newer push or review cancels a waiting run, and the new run re-evaluates.
+  group: review-gate-${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number || github.event.workflow_run.head_sha || 'all' }}
   cancel-in-progress: true
 
 jobs:
   evaluate:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     environment:
       name: review-gate
       deployment: false

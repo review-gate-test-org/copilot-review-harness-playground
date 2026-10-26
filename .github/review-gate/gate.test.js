@@ -1,7 +1,7 @@
 // Run: node --test .github/review-gate/gate.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { decide, parseOwners, agentMayApprove, ownersOf } = require('./gate.js');
+const { decide, parseOwners, agentMayApprove, ownersOf, run: runGate } = require('./gate.js');
 
 const CODEOWNERS = `
 /backend/ @JacobiCamunda
@@ -133,4 +133,89 @@ test('team owners match case-insensitively, for team name and login', () => {
     teams: { '@review-gate-test-org/backend': new Set(['alice']) },
   });
   assert.equal(r.state, 'success');
+});
+
+test('awaiting lists agents whose head review is missing and could turn the gate green', () => {
+  assert.deepEqual(run(['backend/A.java'], []).awaiting, ['copilot']);
+  assert.deepEqual(run(['backend/A.java'], [copilot('APPROVED', 'old')]).awaiting, ['copilot']);
+  assert.deepEqual(run(['backend/A.java'], [copilot('COMMENTED')]).awaiting, []);
+  assert.deepEqual(run(['backend/A.java', 'README.md'], []).awaiting, []);
+  assert.equal(run(['backend/A.java'], [], { pr: { draft: true } }).awaiting, undefined);
+  assert.equal(run(['backend/A.java'], [human('JacobiCamunda', 'CHANGES_REQUESTED')]).awaiting, undefined);
+});
+
+// Fake Octokit: one open PR touching backend/A.java; `reviewsAt(poll)` and `headAt(poll)` script each poll.
+const fakeGithub = ({ reviewsAt = () => [], headAt = () => SHA, state = 'open' } = {}) => {
+  let polls = 0;
+  const statuses = [];
+  const prAt = () => ({ number: 1, state, draft: false, base: { ref: 'main' }, head: { sha: headAt(polls) }, user: { login: 'author' } });
+  const github = {
+    paginate: async (fn, params) => (await fn(params)).data,
+    rest: {
+      repos: {
+        get: async () => ({ data: { default_branch: 'main' } }),
+        getContent: async ({ path }) => {
+          const text = { '.github/CODEOWNERS': CODEOWNERS, '.github/AGENTOWNERS': AGENTOWNERS }[path];
+          if (!text) throw Object.assign(new Error('nf'), { status: 404 });
+          return { data: { content: Buffer.from(text).toString('base64') } };
+        },
+        createCommitStatus: async (s) => statuses.push(s),
+      },
+      pulls: {
+        list: async () => ({ data: [prAt()] }),
+        get: async () => ({ data: prAt() }),
+        listFiles: async () => ({ data: [{ filename: 'backend/A.java' }] }),
+        listReviews: async () => ({ data: reviewsAt(polls) }),
+      },
+      teams: { listMembersInOrg: async () => ({ data: [] }) },
+    },
+  };
+  const opts = { waitMs: 60_000, pollMs: 1, sleep: async () => { polls++; } };
+  const go = (payload) =>
+    runGate({ github, context: { repo: { owner: 'o', repo: 'r' }, payload, serverUrl: 's', runId: 1 }, core: { info() {}, warning() {} } }, opts);
+  return { go, statuses, polls: () => polls };
+};
+
+test('single-PR run waits for copilot and posts its verdict', async () => {
+  const f = fakeGithub({ reviewsAt: (n) => (n >= 2 ? [copilot('APPROVED')] : []) });
+  await f.go({ pull_request: { number: 1 } });
+  assert.deepEqual(f.statuses.map((s) => s.state), ['pending', 'success']);
+  assert.match(f.statuses[0].description, /Waiting for copilot/);
+  assert.ok(f.statuses.every((s) => Object.keys(s).every((k) => k !== 'awaiting')));
+  assert.equal(f.polls(), 2);
+});
+
+test('waiting stops on a non-approving copilot review', async () => {
+  const f = fakeGithub({ reviewsAt: (n) => (n >= 1 ? [copilot('COMMENTED')] : []) });
+  await f.go({ pull_request: { number: 1 } });
+  assert.deepEqual(f.statuses.map((s) => s.state), ['pending', 'pending']);
+  assert.match(f.statuses[1].description, /copilot has not approved/);
+});
+
+test('waiting stops without posting when the head moves', async () => {
+  const f = fakeGithub({ headAt: (n) => (n >= 1 ? 'newer' : SHA) });
+  await f.go({ pull_request: { number: 1 } });
+  assert.equal(f.statuses.length, 1);
+  assert.equal(f.statuses[0].sha, SHA);
+});
+
+test('waiting gives up at the deadline and leaves the gate pending', async () => {
+  const f = fakeGithub();
+  const realNow = Date.now;
+  let t = 0;
+  Date.now = () => (t += 20_000);
+  try {
+    await f.go({ pull_request: { number: 1 } });
+  } finally {
+    Date.now = realNow;
+  }
+  assert.deepEqual(f.statuses.map((s) => s.state), ['pending', 'pending']);
+  assert.ok(f.polls() >= 1 && f.polls() <= 3);
+});
+
+test('schedule runs never wait', async () => {
+  const f = fakeGithub();
+  await f.go({});
+  assert.equal(f.polls(), 0);
+  assert.deepEqual(f.statuses.map((s) => s.state), ['pending']);
 });

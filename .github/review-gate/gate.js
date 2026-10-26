@@ -72,7 +72,8 @@ const latestByLogin = (reviews, { skipComments }) => {
  * @param codeowners  CODEOWNERS text at base
  * @param agentowners AGENTOWNERS text at base
  * @param teams       { '@org/team': Set(logins) } for teams named in CODEOWNERS
- * @returns { state: 'success' | 'pending', description }
+ * @returns { state: 'success' | 'pending', description, awaiting? }
+ *          awaiting: agents whose review of the head commit is missing and could still make it `success`
  */
 const decide = ({ pr, files, reviews, codeowners, agentowners, teams = {} }) => {
   if (pr.draft) return { state: 'pending', description: 'Draft PR' };
@@ -101,16 +102,19 @@ const decide = ({ pr, files, reviews, codeowners, agentowners, teams = {} }) => 
   const agentRules = parseOwners(agentowners);
   const latestBot = latestByLogin(reviews.filter((r) => r.user.type === 'Bot'), { skipComments: false });
   const agentNotes = [];
+  const awaiting = [];
   for (const [agent, login] of Object.entries(AGENTS)) {
     const review = latestBot.get(login);
     const approved = review?.state === 'APPROVED' && review.commit_id === sha;
     const blocked = files.filter((f) => !agentMayApprove(agentRules, f, agent));
     if (approved && !blocked.length) return { state: 'success', description: `Approved by ${agent} (all files agent-approvable)` };
+    // The agent's verdict on this commit could still turn the gate green.
+    if (!blocked.length && !reviews.some((r) => r.user.login === login && r.commit_id === sha)) awaiting.push(agent);
     agentNotes.push(blocked.length ? `${agent} may not approve ${blocked.length} file(s)` : `${agent} has not approved`);
   }
 
   const need = missingOwners.size ? `code owner approval (${[...missingOwners].join(', ')})` : 'one approval';
-  return { state: 'pending', description: `Needs ${need}; ${agentNotes.join('; ')}`.slice(0, 140) };
+  return { state: 'pending', description: `Needs ${need}; ${agentNotes.join('; ')}`.slice(0, 140), awaiting };
 };
 
 // Reads a file at a ref; returns '' if it doesn't exist.
@@ -156,29 +160,58 @@ const evaluate = async (github, repo, pr) => {
   return decide({ pr, files, reviews, codeowners, agentowners, teams });
 };
 
+// How long a single-PR run waits for an agent review that could still turn the gate green.
+// Workflows triggered by an agent's review are held for approval, so the run started by the
+// human's push waits for the agent instead of relying on the review event.
+const WAIT_MS = 15 * 60_000;
+const POLL_MS = 30_000;
+
 // Entry point for actions/github-script.
-const run = async ({ github, context, core }) => {
+const run = async ({ github, context, core }, { waitMs = WAIT_MS, pollMs = POLL_MS, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) } = {}) => {
   const repo = context.repo;
   const { data: meta } = await github.rest.repos.get(repo);
   const open = await github.paginate(github.rest.pulls.list, { ...repo, state: 'open', base: meta.default_branch, per_page: 100 });
 
   const p = context.payload;
+  const singlePr = !!(p.pull_request || p.workflow_run);
   const prs =
     p.pull_request ? open.filter((pr) => pr.number === p.pull_request.number)
       : p.workflow_run ? open.filter((pr) => pr.head.sha === p.workflow_run.head_sha)
-        : open; // schedule / workflow_dispatch
+        : open; // schedule / workflow_dispatch: never waits
 
   const target_url = `${context.serverUrl}/${repo.owner}/${repo.repo}/actions/runs/${context.runId}`;
-  for (const pr of prs) {
-    let result;
+  const post = (sha, { state, description }) =>
+    github.rest.repos.createCommitStatus({ ...repo, sha, context: CONTEXT, target_url, state, description });
+  const safeEvaluate = async (pr) => {
     try {
-      result = await evaluate(github, repo, pr);
+      return await evaluate(github, repo, pr);
     } catch (e) {
       core.warning(`#${pr.number}: ${e.message}`);
-      result = { state: 'pending', description: `Evaluation error: ${e.message}`.slice(0, 140) };
+      return { state: 'pending', description: `Evaluation error: ${e.message}`.slice(0, 140) };
     }
-    core.info(`#${pr.number} ${pr.head.sha.slice(0, 7)} -> ${result.state}: ${result.description}`);
-    await github.rest.repos.createCommitStatus({ ...repo, sha: pr.head.sha, context: CONTEXT, target_url, ...result });
+  };
+
+  for (let pr of prs) {
+    const sha = pr.head.sha;
+    let result = await safeEvaluate(pr);
+    if (singlePr && result.awaiting?.length) {
+      await post(sha, { state: 'pending', description: `Waiting for ${result.awaiting.join(', ')} to review ${sha.slice(0, 7)}` });
+      const deadline = Date.now() + waitMs;
+      while (result?.awaiting?.length && Date.now() < deadline) {
+        await sleep(pollMs);
+        const { data: fresh } = await github.rest.pulls.get({ ...repo, pull_number: pr.number });
+        if (fresh.state !== 'open' || fresh.head.sha !== sha) {
+          core.info(`#${pr.number}: head moved or PR closed; the newer run decides`);
+          result = undefined;
+          break;
+        }
+        pr = fresh;
+        result = await safeEvaluate(pr);
+      }
+    }
+    if (!result) continue;
+    core.info(`#${pr.number} ${sha.slice(0, 7)} -> ${result.state}: ${result.description}`);
+    await post(sha, result);
   }
 };
 

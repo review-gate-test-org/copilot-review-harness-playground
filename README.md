@@ -26,6 +26,12 @@ Merging to `main` requires the `review-gate` commit status, posted by a GitHub A
 
 Otherwise it stays yellow (`pending`) and says what is missing. `.github/**` and `CODEOWNERS` always need a human.
 
+GitHub holds workflow runs triggered by Copilot (its review events, and `workflow_run` chains from them)
+for manual approval, so the gate can't react to Copilot's review directly. Instead, the run started by
+the author's push waits up to 15 minutes for Copilot to review that commit. It waits only when Copilot's
+verdict could still turn the gate green: the PR isn't a draft, no human requested changes, and every file is
+agent-approvable. A newer push or review cancels a waiting run, and the new run re-evaluates.
+
 ```bash
 node --test .github/review-gate/gate.test.js
 ```
