@@ -24,6 +24,7 @@ public class TodoService {
     return todos.remove(todo);
   }
 
+  /** Number of todos. */
   public int size() {
     return todos.size();
   }
