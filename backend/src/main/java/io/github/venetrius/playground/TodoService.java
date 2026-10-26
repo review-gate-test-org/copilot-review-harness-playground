@@ -21,6 +21,8 @@ public class TodoService {
   }
 
   public boolean remove(String todo) {
+    // Removes the first exact match.
+
     return todos.remove(todo);
   }
 }
