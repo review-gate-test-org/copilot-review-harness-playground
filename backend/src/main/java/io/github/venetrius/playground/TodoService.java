@@ -23,4 +23,9 @@ public class TodoService {
   public boolean remove(String todo) {
     return todos.remove(todo);
   }
+
+  /** Number of todos. */
+  public int size() {
+    return todos.size();
+  }
 }
