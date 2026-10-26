@@ -147,8 +147,8 @@ const loadTeams = async (github, codeowners) => {
   return teams;
 };
 
-const evaluate = async (github, repo, pr) => {
-  const ref = pr.base.ref;
+// Rules are always read from the default branch: only PRs targeting it are gated.
+const evaluate = async (github, repo, pr, ref) => {
   const [changed, reviews, codeowners, agentowners] = await Promise.all([
     github.paginate(github.rest.pulls.listFiles, { ...repo, pull_number: pr.number, per_page: 100 }),
     github.paginate(github.rest.pulls.listReviews, { ...repo, pull_number: pr.number, per_page: 100 }),
@@ -174,9 +174,11 @@ const run = async ({ github, context, core }, { waitMs = WAIT_MS, pollMs = POLL_
 
   const p = context.payload;
   const singlePr = !!(p.pull_request || p.workflow_run);
+  // A relay for an older commit must still re-evaluate the PR's current head (it may have cancelled its waiter).
+  const number = p.pull_request?.number ?? p.workflow_run?.pull_requests?.[0]?.number;
   const prs =
-    p.pull_request ? open.filter((pr) => pr.number === p.pull_request.number)
-      : p.workflow_run ? open.filter((pr) => pr.head.sha === p.workflow_run.head_sha)
+    number ? open.filter((pr) => pr.number === number)
+      : p.workflow_run ? open.filter((pr) => pr.head.sha === p.workflow_run.head_sha) // fork PRs: pull_requests is empty
         : open; // schedule / workflow_dispatch: never waits
 
   const target_url = `${context.serverUrl}/${repo.owner}/${repo.repo}/actions/runs/${context.runId}`;
@@ -184,7 +186,7 @@ const run = async ({ github, context, core }, { waitMs = WAIT_MS, pollMs = POLL_
     github.rest.repos.createCommitStatus({ ...repo, sha, context: CONTEXT, target_url, state, description });
   const safeEvaluate = async (pr) => {
     try {
-      return await evaluate(github, repo, pr);
+      return await evaluate(github, repo, pr, meta.default_branch);
     } catch (e) {
       core.warning(`#${pr.number}: ${e.message}`);
       return { state: 'pending', description: `Evaluation error: ${e.message}`.slice(0, 140) };
@@ -200,8 +202,8 @@ const run = async ({ github, context, core }, { waitMs = WAIT_MS, pollMs = POLL_
       while (result?.awaiting?.length && Date.now() < deadline) {
         await sleep(pollMs);
         const { data: fresh } = await github.rest.pulls.get({ ...repo, pull_number: pr.number });
-        if (fresh.state !== 'open' || fresh.head.sha !== sha) {
-          core.info(`#${pr.number}: head moved or PR closed; the newer run decides`);
+        if (fresh.state !== 'open' || fresh.head.sha !== sha || fresh.base.ref !== meta.default_branch) {
+          core.info(`#${pr.number}: head moved, base changed or PR closed; stop waiting`);
           result = undefined;
           break;
         }

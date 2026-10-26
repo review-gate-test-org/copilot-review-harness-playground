@@ -145,16 +145,18 @@ test('awaiting lists agents whose head review is missing and could turn the gate
 });
 
 // Fake Octokit: one open PR touching backend/A.java; `reviewsAt(poll)` and `headAt(poll)` script each poll.
-const fakeGithub = ({ reviewsAt = () => [], headAt = () => SHA, state = 'open' } = {}) => {
+const fakeGithub = ({ reviewsAt = () => [], headAt = () => SHA, baseAt = () => 'main', state = 'open' } = {}) => {
   let polls = 0;
   const statuses = [];
-  const prAt = () => ({ number: 1, state, draft: false, base: { ref: 'main' }, head: { sha: headAt(polls) }, user: { login: 'author' } });
+  const rulesRefs = new Set();
+  const prAt = () => ({ number: 1, state, draft: false, base: { ref: baseAt(polls) }, head: { sha: headAt(polls) }, user: { login: 'author' } });
   const github = {
     paginate: async (fn, params) => (await fn(params)).data,
     rest: {
       repos: {
         get: async () => ({ data: { default_branch: 'main' } }),
-        getContent: async ({ path }) => {
+        getContent: async ({ path, ref }) => {
+          rulesRefs.add(ref);
           const text = { '.github/CODEOWNERS': CODEOWNERS, '.github/AGENTOWNERS': AGENTOWNERS }[path];
           if (!text) throw Object.assign(new Error('nf'), { status: 404 });
           return { data: { content: Buffer.from(text).toString('base64') } };
@@ -173,7 +175,7 @@ const fakeGithub = ({ reviewsAt = () => [], headAt = () => SHA, state = 'open' }
   const opts = { waitMs: 60_000, pollMs: 1, sleep: async () => { polls++; } };
   const go = (payload) =>
     runGate({ github, context: { repo: { owner: 'o', repo: 'r' }, payload, serverUrl: 's', runId: 1 }, core: { info() {}, warning() {} } }, opts);
-  return { go, statuses, polls: () => polls };
+  return { go, statuses, polls: () => polls, rulesRefs };
 };
 
 test('single-PR run waits for copilot and posts its verdict', async () => {
@@ -218,4 +220,25 @@ test('schedule runs never wait', async () => {
   await f.go({});
   assert.equal(f.polls(), 0);
   assert.deepEqual(f.statuses.map((s) => s.state), ['pending']);
+});
+
+test('waiting stops without posting when the PR is retargeted, and rules come from the default branch', async () => {
+  const f = fakeGithub({ baseAt: (n) => (n >= 1 ? 'release' : 'main'), reviewsAt: () => [] });
+  await f.go({ pull_request: { number: 1 } });
+  assert.equal(f.statuses.length, 1);
+  assert.deepEqual([...f.rulesRefs], ['main']);
+});
+
+test('a relay for an older commit re-evaluates the PR head by PR number', async () => {
+  const f = fakeGithub({ reviewsAt: () => [copilot('APPROVED')] });
+  await f.go({ workflow_run: { head_sha: 'older', pull_requests: [{ number: 1 }] } });
+  assert.deepEqual(f.statuses.map((s) => [s.sha, s.state]), [[SHA, 'success']]);
+});
+
+test('a relay without pull_requests (fork) falls back to head SHA matching', async () => {
+  const f = fakeGithub({ reviewsAt: () => [copilot('APPROVED')] });
+  await f.go({ workflow_run: { head_sha: 'older', pull_requests: [] } });
+  assert.equal(f.statuses.length, 0);
+  await f.go({ workflow_run: { head_sha: SHA, pull_requests: [] } });
+  assert.deepEqual(f.statuses.map((s) => s.state), ['success']);
 });
