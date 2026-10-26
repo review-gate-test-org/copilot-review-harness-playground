@@ -17,6 +17,8 @@ cd client && npm ci && npm run lint && npm run build
 
 ## Review gate
 
+Why a custom gate, and the alternatives we tested: [docs/approval-options.md](docs/approval-options.md).
+
 Merging to `main` requires the `review-gate` commit status, posted by a GitHub App from
 [`.github/workflows/review-gate.yml`](.github/workflows/review-gate.yml). It is green when:
 
