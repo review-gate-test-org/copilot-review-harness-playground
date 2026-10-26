@@ -35,3 +35,5 @@ agent-approvable. A newer push or review cancels a waiting run, and the new run 
 ```bash
 node --test .github/review-gate/gate.test.js
 ```
+
+See `backend/` for the Java service.
