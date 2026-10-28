@@ -42,6 +42,42 @@ test('AGENTOWNERS: last match wins, unmatched and hard-denied paths are not appr
   assert.equal(agentMayApprove(rules, 'CODEOWNERS', 'copilot'), false);
 });
 
+// Copilot code review reads these from the PR head, so a PR could use them to steer its own review.
+const AGENT_INSTRUCTION_FILES = [
+  'AGENTS.md',
+  'backend/AGENTS.md',
+  'backend/src/main/agents.md',
+  'client/src/CLAUDE.md',
+  'backend/GEMINI.md',
+  'client/REVIEW.md',
+  'backend/copilot-instructions.md',
+  'client/.github/copilot-instructions.md',
+  'backend/java.instructions.md',
+  'client/src/Style.Instructions.md',
+  'backend/.github/instructions/x.instructions.md',
+  'backend/.claude/skills/approve/SKILL.md',
+  'client/.agents/skills/approve/SKILL.md',
+  'backend/.agents/skills/approve/helper.sh',
+  'client/skills/approve/SKILL.md',
+  '.claude/settings.json',
+  '.agents/skills/a/SKILL.md',
+];
+
+test('agent instruction and skill files are never agent-approvable, at any depth', () => {
+  const rules = parseOwners(AGENTOWNERS + '\n* copilot');
+  for (const f of AGENT_INSTRUCTION_FILES) assert.equal(agentMayApprove(rules, f, 'copilot'), false, f);
+  for (const f of ['backend/src/Agents.java', 'client/src/review.ts', 'backend/README.md', 'client/AGENTS.md.bak'])
+    assert.equal(agentMayApprove(rules, f, 'copilot'), true, f);
+});
+
+test('copilot approval cannot merge a PR that adds agent instructions', () => {
+  for (const f of ['backend/AGENTS.md', 'client/src/CLAUDE.md', 'backend/.claude/skills/x/SKILL.md']) {
+    const r = run(['backend/A.java', f], [copilot('APPROVED')]);
+    assert.equal(r.state, 'pending', f);
+    assert.match(r.description, /copilot may not approve 1 file/);
+  }
+});
+
 test('draft stays pending', () => {
   assert.equal(run(['backend/A.java'], [human('JacobiCamunda', 'APPROVED')], { pr: { draft: true } }).state, 'pending');
 });
