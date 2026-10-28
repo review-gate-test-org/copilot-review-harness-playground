@@ -72,8 +72,9 @@ Code owners are still requested as reviewers automatically.
   alone satisfies GitHub's "1 approval" rule — we merged a PR that way by accident.
 - **Developers:** each push to a PR Copilot may approve waits for Copilot's review (about 1.5–2 min
   measured, at most 15 min). If Copilot is slower, the gate stays pending until the next push or review.
-- **Developers:** Copilot's review still starts a held, no-op workflow run, so the PR shows as "unstable".
-  It isn't required, so it doesn't block merging.
+- **Developers:** Copilot's review still starts the review relay, which GitHub holds for approval. The PR shows
+  an "Approve workflows to run" prompt and the "unstable" state. Nobody needs to click it, but it can't be hidden:
+  the same relay re-runs the gate after human reviews, and GitHub holds the run before any condition is checked.
 - **Developers:** GitHub's UI no longer says "code owner review required"; the status description says
   what is missing instead.
 
@@ -97,11 +98,14 @@ yellow and blocked.
 
 **Viable when:** PRs are merged through a command or workflow anyway.
 
-## Held workflows (previously the open problem)
+## Open problem: held workflows
 
 GitHub holds workflow runs started by Copilot until a person approves them, so automation can't react
 to Copilot's review directly.
 
-**Solved for option 3:** the run started by the author's push isn't held, and it waits for Copilot's
-review of that commit. Measured: the gate turned green 6 seconds after Copilot approved. Options 2 and 4
-can use the same approach.
+- **Merge blocking — solved for option 3:** the run started by the author's push isn't held, and it waits
+  for Copilot's review of that commit. Measured: the gate turned green 6 seconds after Copilot approved.
+  Options 2 and 4 can use the same approach.
+- **Held-run prompt — not solved:** Copilot's review still triggers the review relay, which is held. It needs
+  no click, but it shows on every PR Copilot reviews. Removing it while keeping immediate updates after human
+  reviews likely means handling review events outside Actions, for example with GitHub App webhooks.
