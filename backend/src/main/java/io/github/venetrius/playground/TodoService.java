@@ -17,7 +17,7 @@ public class TodoService {
   }
 
   public List<String> list() {
-    return List.copyOf(todos);
+    return todos;
   }
 
   public boolean remove(String todo) {
