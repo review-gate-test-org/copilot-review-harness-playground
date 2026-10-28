@@ -20,6 +20,10 @@ public class TodoService {
     return List.copyOf(todos);
   }
 
+  public int size() {
+    return todos.size();
+  }
+
   public boolean remove(String todo) {
     return todos.remove(todo);
   }
