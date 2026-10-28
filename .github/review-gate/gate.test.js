@@ -42,40 +42,50 @@ test('AGENTOWNERS: last match wins, unmatched and hard-denied paths are not appr
   assert.equal(agentMayApprove(rules, 'CODEOWNERS', 'copilot'), false);
 });
 
-// Copilot code review reads these from the PR head, so a PR could use them to steer its own review.
+// Root locations Copilot code review read from the PR head in tests (#97); nested copies were ignored.
 const AGENT_INSTRUCTION_FILES = [
   'AGENTS.md',
+  'CLAUDE.md',
+  'GEMINI.md',
+  'REVIEW.md',
+  'agents.md',
+  '.github/copilot-instructions.md',
+  '.github/instructions/review.instructions.md',
+  '.github/skills/x/SKILL.md',
+  '.claude/skills/x/SKILL.md',
+  '.agents/skills/x/SKILL.md',
+  '.agents/skills/x/helper.sh',
+];
+const NOT_READ_BY_COPILOT = [
   'backend/AGENTS.md',
-  'backend/src/main/agents.md',
-  'client/src/CLAUDE.md',
-  'backend/GEMINI.md',
-  'client/REVIEW.md',
-  'backend/copilot-instructions.md',
-  'client/.github/copilot-instructions.md',
-  'backend/java.instructions.md',
-  'client/src/Style.Instructions.md',
-  'backend/.github/instructions/x.instructions.md',
-  'backend/.claude/skills/approve/SKILL.md',
-  'client/.agents/skills/approve/SKILL.md',
-  'backend/.agents/skills/approve/helper.sh',
-  'client/skills/approve/SKILL.md',
+  'backend/CLAUDE.md',
+  'client/src/GEMINI.md',
+  'backend/REVIEW.md',
+  'backend/.github/copilot-instructions.md',
+  'backend/.github/instructions/review.instructions.md',
+  'backend/.claude/skills/x/SKILL.md',
+  'backend/x.instructions.md',
+  'skills/x/SKILL.md',
   '.claude/settings.json',
-  '.agents/skills/a/SKILL.md',
+  'AGENTS.md.bak',
 ];
 
-test('agent instruction and skill files are never agent-approvable, at any depth', () => {
+test('root agent instruction and skill files are never agent-approvable; nested copies still are', () => {
   const rules = parseOwners(AGENTOWNERS + '\n* copilot');
   for (const f of AGENT_INSTRUCTION_FILES) assert.equal(agentMayApprove(rules, f, 'copilot'), false, f);
-  for (const f of ['backend/src/Agents.java', 'client/src/review.ts', 'backend/README.md', 'client/AGENTS.md.bak'])
-    assert.equal(agentMayApprove(rules, f, 'copilot'), true, f);
+  for (const f of NOT_READ_BY_COPILOT) assert.equal(agentMayApprove(rules, f, 'copilot'), true, f);
 });
 
-test('copilot approval cannot merge a PR that adds agent instructions', () => {
-  for (const f of ['backend/AGENTS.md', 'client/src/CLAUDE.md', 'backend/.claude/skills/x/SKILL.md']) {
-    const r = run(['backend/A.java', f], [copilot('APPROVED')]);
+test('copilot approval cannot merge a PR that adds root agent instructions', () => {
+  const agentowners = AGENTOWNERS + '\n* copilot';
+  const decideWith = (files) => decide({ pr: pr(), files, reviews: [copilot('APPROVED')], codeowners: CODEOWNERS, agentowners });
+  for (const f of ['AGENTS.md', 'REVIEW.md', '.claude/skills/x/SKILL.md']) {
+    const r = decideWith(['backend/A.java', f]);
     assert.equal(r.state, 'pending', f);
     assert.match(r.description, /copilot may not approve 1 file/);
   }
+  for (const f of ['backend/AGENTS.md', 'skills/x/SKILL.md'])
+    assert.equal(decideWith(['backend/A.java', f]).state, 'success', f);
 });
 
 test('draft stays pending', () => {
