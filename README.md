@@ -42,6 +42,8 @@ the author's push waits up to 15 minutes for Copilot to review that commit. It w
 verdict could still turn the gate green: the PR isn't a draft, no human requested changes, and every file is
 agent-approvable. A newer push or review cancels a waiting run, and the new run re-evaluates.
 
+Design, current setup, learnings, limitations and next steps: [`.github/review-gate/README.md`](.github/review-gate/README.md).
+
 ```bash
 node --test .github/review-gate/gate.test.js
 ```
