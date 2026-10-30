@@ -11,8 +11,15 @@ const CONTEXT = 'review-gate';
 // Agent ID (as used in AGENTOWNERS) -> GitHub login of the agent's reviews.
 const AGENTS = { copilot: 'copilot-pull-request-reviewer[bot]' };
 
-// Paths no agent may ever approve, whatever AGENTOWNERS says.
-const HARD_DENY = [/^\.github\//, /^(docs\/)?CODEOWNERS$/];
+// Paths no agent may ever approve, whatever AGENTOWNERS says. Copilot code review reads instructions
+// and skills from the PR head, so a PR could otherwise use them to steer its own review. Only root
+// locations are listed: in tests, Copilot ignored nested copies (see #97).
+const HARD_DENY = [
+  /^\.github\//,
+  /^(docs\/)?CODEOWNERS$/,
+  /^(AGENTS|CLAUDE|GEMINI|REVIEW)\.md$/i,
+  /^\.(claude|agents)\/skills\//i,
+];
 
 // CODEOWNERS glob -> RegExp. Supports *, **, ?, leading / (anchor) and trailing / (directory).
 const toRegex = (pattern) => {

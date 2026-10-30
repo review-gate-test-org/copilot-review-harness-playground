@@ -42,6 +42,52 @@ test('AGENTOWNERS: last match wins, unmatched and hard-denied paths are not appr
   assert.equal(agentMayApprove(rules, 'CODEOWNERS', 'copilot'), false);
 });
 
+// Root locations Copilot code review read from the PR head in tests (#97); nested copies were ignored.
+const AGENT_INSTRUCTION_FILES = [
+  'AGENTS.md',
+  'CLAUDE.md',
+  'GEMINI.md',
+  'REVIEW.md',
+  'agents.md',
+  '.github/copilot-instructions.md',
+  '.github/instructions/review.instructions.md',
+  '.github/skills/x/SKILL.md',
+  '.claude/skills/x/SKILL.md',
+  '.agents/skills/x/SKILL.md',
+  '.agents/skills/x/helper.sh',
+];
+const NOT_READ_BY_COPILOT = [
+  'backend/AGENTS.md',
+  'backend/CLAUDE.md',
+  'client/src/GEMINI.md',
+  'backend/REVIEW.md',
+  'backend/.github/copilot-instructions.md',
+  'backend/.github/instructions/review.instructions.md',
+  'backend/.claude/skills/x/SKILL.md',
+  'backend/x.instructions.md',
+  'skills/x/SKILL.md',
+  '.claude/settings.json',
+  'AGENTS.md.bak',
+];
+
+test('root agent instruction and skill files are never agent-approvable; nested copies still are', () => {
+  const rules = parseOwners(AGENTOWNERS + '\n* copilot');
+  for (const f of AGENT_INSTRUCTION_FILES) assert.equal(agentMayApprove(rules, f, 'copilot'), false, f);
+  for (const f of NOT_READ_BY_COPILOT) assert.equal(agentMayApprove(rules, f, 'copilot'), true, f);
+});
+
+test('copilot approval cannot merge a PR that adds root agent instructions', () => {
+  const agentowners = AGENTOWNERS + '\n* copilot';
+  const decideWith = (files) => decide({ pr: pr(), files, reviews: [copilot('APPROVED')], codeowners: CODEOWNERS, agentowners });
+  for (const f of ['AGENTS.md', 'REVIEW.md', '.claude/skills/x/SKILL.md']) {
+    const r = decideWith(['backend/A.java', f]);
+    assert.equal(r.state, 'pending', f);
+    assert.match(r.description, /copilot may not approve 1 file/);
+  }
+  for (const f of ['backend/AGENTS.md', 'skills/x/SKILL.md'])
+    assert.equal(decideWith(['backend/A.java', f]).state, 'success', f);
+});
+
 test('draft stays pending', () => {
   assert.equal(run(['backend/A.java'], [human('JacobiCamunda', 'APPROVED')], { pr: { draft: true } }).state, 'pending');
 });

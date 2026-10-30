@@ -24,7 +24,17 @@ Merging to `main` requires the `review-gate` commit status, posted by a GitHub A
 - **Copilot approved** the head commit **and** every changed file is agent-approvable in
   [`.github/AGENTOWNERS`](.github/AGENTOWNERS) (CODEOWNERS syntax, agent IDs instead of users).
 
-Otherwise it stays yellow (`pending`) and says what is missing. `.github/**` and `CODEOWNERS` always need a human.
+Otherwise it stays yellow (`pending`) and says what is missing. These root paths always need a human,
+whatever `AGENTOWNERS` says. Copilot code review reads instructions and skills from the PR's head
+branch, so a PR could otherwise use them to steer its own review:
+
+- `.github/` (includes `copilot-instructions.md`, `instructions/`, `skills/` and workflows)
+- `CODEOWNERS` and `docs/CODEOWNERS`
+- `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` and `REVIEW.md`
+- `.claude/skills/` and `.agents/skills/`
+
+Copies in subdirectories (for example `backend/AGENTS.md`) stay agent-approvable: in testing, Copilot
+did not read them ([#97](https://github.com/review-gate-test-org/copilot-review-harness-playground/issues/97)).
 
 GitHub holds workflow runs triggered by Copilot (its review events, and `workflow_run` chains from them)
 for manual approval, so the gate can't react to Copilot's review directly. Instead, the run started by
