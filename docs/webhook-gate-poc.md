@@ -1,7 +1,8 @@
 # Webhook-driven review gate (GitHub App): decision doc and POC
 
-> **Status: draft for review.** Facts, assumptions, design and POC plan are complete.
-> Sections marked ⏳ are filled in as POC evidence comes in.
+> **Status: on hold (2026-10-30). The POC was not run.** Facts, assumptions, design and POC plan are complete;
+> every ⏳ result is still open. The approval paths that were built are compared in
+> [approval-overview](https://github.com/review-gate-test-org/approval-overview).
 >
 > Legend: ✅ verified (evidence linked) · ❓ assumption, not verified · ⏳ POC pending · ❌ refuted
 
@@ -58,7 +59,7 @@ gate runs in GitHub Actions. Human reviews reach it through a relay workflow
 
 | # | Assumption | Status | How it is tested |
 |---|-----------|--------|------------------|
-| A1 | With no workflow listening to `pull_request_review` (and no `workflow_run` chain from it), Copilot reviews start **no** held runs, so the prompt disappears. | ⏳ | E2 |
+| A1 | With no workflow listening to `pull_request_review` (and no `workflow_run` chain from it), Copilot reviews start **no** held runs, so the prompt disappears. | ⏳ Supported, outside this POC: [approval-machine-user](https://github.com/review-gate-test-org/approval-machine-user) has no workflow on review events, and 0 of its 42 runs were held (2026-10-30). Not yet shown with a webhook. | E2 |
 | A2 | A `workflow_dispatch` run created with an App installation token is **not** held. This decides whether variant B works. | ⏳ | E6 |
 | A3 | A webhook takes seconds from review submission to a `review-gate` status. Today a push-triggered run can wait up to 15 min. | ⏳ | E3 |
 | A4 | Fail-closed: with the service down, no PR turns green. A push leaves the new head without the required status. | ⏳ | E4 |
